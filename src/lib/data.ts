@@ -708,19 +708,26 @@ export const setTaskStatus = async (
       changedAt: Timestamp.now(),
     });
 
-    transaction.update(targetTaskRef, updatePayload);
-
     const shouldReward = previousStatus !== "done" && nextStatus === "done";
-    if (!shouldReward) return;
 
     const rewardUserId = String(
       updatePayload.assigneeUserId ?? taskData.assigneeUserId ?? actorUserId,
     );
     const rewardMinor = Number(taskData.pointsMinor ?? 0);
-    if (rewardMinor === 0) return;
 
-    const rewardAccountRef = accountRef(teamId, rewardUserId);
-    const accountDoc = await transaction.get(rewardAccountRef);
+    // Read reward account before any writes (if needed)
+    const rewardAccountRef =
+      shouldReward && rewardMinor > 0 ? accountRef(teamId, rewardUserId) : null;
+    const accountDoc = rewardAccountRef
+      ? await transaction.get(rewardAccountRef)
+      : null;
+
+    // Writes
+    transaction.update(targetTaskRef, updatePayload);
+
+    if (!shouldReward || rewardMinor === 0 || !rewardAccountRef || !accountDoc)
+      return;
+
     const currentBalance = Number(accountDoc.data()?.balanceMinor ?? 0);
     const balanceAfterMinor = currentBalance + rewardMinor;
 
@@ -1025,12 +1032,14 @@ export const removeMemberFromTeam = async (
     const memberDocRef = memberRef(teamId, userId);
     const accountDocRef = accountRef(teamId, userId);
 
+    // All reads before writes
+    const accountDoc = await transaction.get(accountDocRef);
+
     transaction.update(memberDocRef, {
       status: "disabled",
       updatedAt: serverTimestamp(),
     });
 
-    const accountDoc = await transaction.get(accountDocRef);
     if (accountDoc.exists()) {
       transaction.set(
         accountDocRef,

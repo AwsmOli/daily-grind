@@ -452,9 +452,24 @@ p {
 }
 
 .page-title {
-  font-size: 1.4rem;
+  font-size: 1.35rem;
   font-weight: 700;
   color: var(--ink-900);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.logo-slash {
+  color: var(--brand);
+  font-family: 'Space Grotesk', monospace;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.logo-word {
+  color: var(--ink-900);
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
 }
 
 .header-account-block {
@@ -649,6 +664,15 @@ p {
 .context-menu-item:hover {
   background: #1a2233;
   color: var(--ink-900);
+}
+
+.context-menu-item--danger {
+  color: #f87171;
+}
+
+.context-menu-item--danger:hover {
+  background: #2a1a1a;
+  color: #fca5a5;
 }
 
 .task-tags {
@@ -990,7 +1014,7 @@ p {
 
 /* ---- Admin member tiles ---- */
 .member-tiles-section {
-  padding: 0.75rem 1rem 0;
+  padding: 0.75rem 0 0;
 }
 
 .member-tiles-scroll {
@@ -1090,4 +1114,76 @@ p {
 .member-tasks-list {
   margin: 0;
   padding: 0;
+}
+
+/* ─── Page transitions ─────────────────────────────────────────── */
+.page-enter-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.page-leave-active {
+  transition: opacity 0.13s ease, transform 0.13s ease;
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* ─── Modal entrance ────────────────────────────────────────────── */
+.modal-backdrop {
+  animation: backdrop-in 0.18s ease both;
+}
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.modal-card {
+  animation: modal-card-in 0.2s cubic-bezier(0.34, 1.36, 0.64, 1) both;
+}
+@keyframes modal-card-in {
+  from { opacity: 0; transform: scale(0.95) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ─── Context-menu / popover entrance ──────────────────────────── */
+.task-more-popover {
+  animation: popover-in 0.14s cubic-bezier(0.34, 1.36, 0.64, 1) both;
+  transform-origin: top right;
+}
+@keyframes popover-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ─── Member tile entrance ──────────────────────────────────────── */
+.member-tiles-scroll .member-tile {
+  animation: tile-in 0.2s ease both;
+}
+@keyframes tile-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ─── Empty team lane text ──────────────────────────────────────── */
+.lane-empty-text {
+  color: var(--ink-500);
+  font-size: 0.82rem;
+  padding: 0.6rem 0.5rem;
+  margin: 0;
+}
+
+/* ─── No text selection on touch devices ───────────────────────── */
+@media (pointer: coarse) {
+  .todo-item-row,
+  .member-tile,
+  .todo-list,
+  .member-tiles-scroll,
+  .task-more-menu summary,
+  .assignment-chip {
+    -webkit-user-select: none;
+    user-select: none;
+  }
 }

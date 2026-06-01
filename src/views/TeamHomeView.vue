@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import {
+  adjustPoints,
   createTask,
   removeTask,
   setTaskAssignee,
@@ -54,6 +55,14 @@ const taskAssigneeUserId = ref('');
 const draggingTaskId = ref('');
 const draggingTaskVisibility = ref<'personal' | 'shared' | ''>('');
 const activeDropLane = ref<'personal' | 'shared' | ''>('');
+
+// Adjust balance modal
+const adjustMember = ref<TeamMember | null>(null);
+const adjustAmount = ref('');
+const adjustNote = ref('');
+const adjustBusy = ref(false);
+const adjustError = ref('');
+let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 
 let unsubscribeLists: (() => void) | null = null;
 let unsubscribeMembers: (() => void) | null = null;
@@ -130,6 +139,61 @@ const memberOutstandingById = computed(() => {
 const viewingMember = computed(() =>
   viewingMemberId.value ? members.value.find(m => m.userId === viewingMemberId.value) ?? null : null,
 );
+
+const openAdjustModal = (member: TeamMember) => {
+  adjustMember.value = member;
+  adjustAmount.value = '';
+  adjustNote.value = '';
+  adjustError.value = '';
+};
+
+const closeAdjustModal = () => {
+  adjustMember.value = null;
+};
+
+const submitAdjust = async () => {
+  if (!adjustMember.value || !activeTeamId.value || !currentUserId.value) return;
+  const delta = Number(adjustAmount.value);
+  if (!Number.isFinite(delta) || delta === 0) {
+    adjustError.value = 'Enter a non-zero amount.';
+    return;
+  }
+  if (!adjustNote.value.trim()) {
+    adjustError.value = 'A note is required.';
+    return;
+  }
+  adjustBusy.value = true;
+  adjustError.value = '';
+  try {
+    await adjustPoints(
+      activeTeamId.value,
+      adjustMember.value.userId,
+      currentUserId.value,
+      majorToMinor(delta),
+      'manual_adjust',
+      adjustNote.value.trim(),
+    );
+    closeAdjustModal();
+  } catch (e) {
+    adjustError.value = e instanceof Error ? e.message : 'Failed to adjust balance.';
+  } finally {
+    adjustBusy.value = false;
+  }
+};
+
+const onTileLongPressStart = (member: TeamMember) => {
+  longPressTimer = setTimeout(() => {
+    longPressTimer = null;
+    openAdjustModal(member);
+  }, 600);
+};
+
+const onTileLongPressCancel = () => {
+  if (longPressTimer !== null) {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }
+};
 
 const viewMemberTasks = (memberId: string) => {
   if (unsubscribeMemberPersonalTasks) {
@@ -445,6 +509,12 @@ const toggleTodoDone = async (task: TaskItem) => {
   }
 };
 
+const repeatTaskNow = async (task: TaskItem, closeAfter = false) => {
+  if (task.status !== 'done') return;
+  await toggleTodoDone(task);
+  if (closeAfter) closeTaskDetails();
+};
+
 const deleteTodo = async (taskId: string) => {
   if (!activeTeamId.value) return;
 
@@ -595,7 +665,9 @@ onUnmounted(() => {
 <template>
   <main class="team-home">
     <header class="dashboard-header">
-      <h1 class="page-title">Todo</h1>
+      <h1 class="page-title">
+        <span class="logo-slash">//</span><span class="logo-word">ToDo</span>
+      </h1>
 
       <div class="header-account-block">
         <div class="account-info">
@@ -632,7 +704,12 @@ onUnmounted(() => {
                 class="member-tile"
                 :class="{ 'member-tile-active': viewingMemberId === member.userId }"
                 type="button"
-                @click="viewMemberTasks(member.userId)">
+                @click="viewMemberTasks(member.userId)"
+                @contextmenu.prevent="openAdjustModal(member)"
+                @touchstart.passive="onTileLongPressStart(member)"
+                @touchend="onTileLongPressCancel"
+                @touchmove="onTileLongPressCancel"
+                @touchcancel="onTileLongPressCancel">
           <span class="member-tile-name">{{ member.displayName || member.email || 'Member' }}</span>
           <span class="member-tile-balance">
             {{ pointsSymbol }}{{ minorToMajor(memberBalanceById.get(member.userId) ?? 0) }}
@@ -740,7 +817,7 @@ onUnmounted(() => {
         <span class="divider-label">Team</span>
         <span v-if="viewingMemberId"
               class="divider-sub">assigned to {{ viewingMember?.displayName || viewingMember?.email || 'member'
-          }}</span>
+              }}</span>
       </div>
 
       <section class="todo-lane"
@@ -814,7 +891,9 @@ onUnmounted(() => {
           </TransitionGroup>
         </ul>
 
-        <div v-else-if="isDraggingTask"
+        <p v-else-if="!isDraggingTask"
+           class="lane-empty-text">No team tasks yet.</p>
+        <div v-else
              class="lane-empty-drop"></div>
       </section>
 
@@ -846,6 +925,9 @@ onUnmounted(() => {
                   <div class="task-more-popover context-menu">
                     <button class="context-menu-item"
                             type="button"
+                            @click="repeatTaskNow(task)">&#8635; Repeat Now</button>
+                    <button class="context-menu-item context-menu-item--danger"
+                            type="button"
                             @click="deleteTodo(task.id)">Delete</button>
                   </div>
                 </details>
@@ -863,6 +945,57 @@ onUnmounted(() => {
       </ul>
 
     </template>
+
+    <!-- Adjust member balance modal -->
+    <div v-if="adjustMember"
+         class="modal-backdrop"
+         @click.self="closeAdjustModal">
+      <section class="modal-card">
+        <button class="modal-close"
+                type="button"
+                aria-label="Close"
+                @click="closeAdjustModal">&#x2715;</button>
+        <h2>Adjust Balance</h2>
+        <p class="task-sub">
+          {{ adjustMember.displayName || adjustMember.email || 'Member' }}
+          &mdash; current: {{ pointsSymbol }}{{ minorToMajor(memberBalanceById.get(adjustMember.userId) ?? 0) }}
+        </p>
+        <form class="form"
+              @submit.prevent="submitAdjust">
+          <div>
+            <label class="field-label">Amount ({{ pointsSymbol || 'pts' }}, use − to deduct)</label>
+            <input v-model="adjustAmount"
+                   class="field"
+                   type="number"
+                   step="0.01"
+                   placeholder="e.g. 5.00 or -3.00"
+                   required
+                   :disabled="adjustBusy" />
+          </div>
+          <div>
+            <label class="field-label">Note (required)</label>
+            <input v-model="adjustNote"
+                   class="field"
+                   type="text"
+                   placeholder="Reason for adjustment"
+                   required
+                   :disabled="adjustBusy" />
+          </div>
+          <p v-if="adjustError"
+             class="error-text">{{ adjustError }}</p>
+          <div class="button-row">
+            <button class="btn btn-primary"
+                    type="submit"
+                    :disabled="adjustBusy">{{ adjustBusy ? 'Saving…' : 'Apply'
+              }}</button>
+            <button class="btn btn-ghost"
+                    type="button"
+                    :disabled="adjustBusy"
+                    @click="closeAdjustModal">Cancel</button>
+          </div>
+        </form>
+      </section>
+    </div>
 
     <button class="fab-add"
             type="button"
@@ -900,16 +1033,20 @@ onUnmounted(() => {
                  class="field"
                  type="text"
                  placeholder="Task title"
+                 autocomplete="off"
+                 autofocus
                  required />
           <textarea v-model="taskDescription"
                     class="field"
                     rows="3"
+                    autocomplete="off"
                     placeholder="Task description"></textarea>
           <input v-model="taskPointsMajor"
                  class="field"
                  type="number"
                  step="0.01"
                  min="0"
+                 autocomplete="off"
                  placeholder="Points" />
           <div>
             <label class="field-label">Repeat</label>
@@ -973,6 +1110,14 @@ onUnmounted(() => {
                     type="button"
                     @click="saveRecurringRule">Save</button>
           </div>
+        </div>
+
+        <div v-if="selectedTask.status === 'done'"
+             class="button-row">
+          <button class="btn btn-secondary"
+                  type="button"
+                  @click="repeatTaskNow(selectedTask, true)">&#8635; Repeat
+            Now</button>
         </div>
 
         <div class="task-history">

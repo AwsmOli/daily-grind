@@ -10,8 +10,8 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg", "icons.svg"],
       manifest: {
-        name: "Daily Grind",
-        short_name: "DailyGrind",
+        name: "//ToDo",
+        short_name: "//ToDo",
         description: "Collaborative daily task and rewards tracker.",
         theme_color: "#0f766e",
         background_color: "#f7f9fc",
