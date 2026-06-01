@@ -251,7 +251,15 @@ export const redeemInvite = async (
   }
 
   await runTransaction(firestore, async (transaction) => {
-    // All reads must come before any writes in a Firestore transaction.
+    // All reads must come before any writes in a Firestore transaction,
+    // and every document written to must also be read within the transaction.
+    const freshInvite = await transaction.get(inviteDoc.ref);
+    if (!freshInvite.exists()) throw new Error("Invite code not found.");
+    const freshUsedCount = Number(freshInvite.data()?.usedCount ?? 0);
+    const freshUseLimit = Number(freshInvite.data()?.useLimit ?? 1);
+    if (freshUsedCount >= freshUseLimit)
+      throw new Error("Invite has already been used.");
+
     const membershipDoc = memberRef(teamRef.id, user.uid);
     const existingMember = await transaction.get(membershipDoc);
 
@@ -575,8 +583,12 @@ export const subscribeAllPersonalTasks = (
   return onSnapshot(
     q,
     (snapshot) => {
-      const tasks = snapshot.docs.map((entry) => taskToModel(entry.id, entry.data()));
-      tasks.sort((a, b) => (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0));
+      const tasks = snapshot.docs.map((entry) =>
+        taskToModel(entry.id, entry.data()),
+      );
+      tasks.sort(
+        (a, b) => (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0),
+      );
       onData(tasks);
     },
     (error) => onError(error.message),

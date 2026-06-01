@@ -739,7 +739,8 @@ onUnmounted(() => {
            class="todos-divider">
         <span class="divider-label">Team</span>
         <span v-if="viewingMemberId"
-              class="divider-sub">assigned to {{ viewingMember?.displayName || viewingMember?.email || 'member' }}</span>
+              class="divider-sub">assigned to {{ viewingMember?.displayName || viewingMember?.email || 'member'
+          }}</span>
       </div>
 
       <section class="todo-lane"
