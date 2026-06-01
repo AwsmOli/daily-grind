@@ -1,0 +1,32 @@
+{
+  "name": "app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview",
+    "hosting:deploy": "npm run build && npx firebase deploy --only hosting",
+    "hosting:preview": "npm run build && npx firebase hosting:channel:deploy preview",
+    "hosting:emulate": "npm run build && npx firebase emulators:start --only hosting",
+    "firestore:deploy": "npx firebase deploy --only firestore",
+    "firebase:deploy": "npm run build && npx firebase deploy"
+  },
+  "dependencies": {
+    "firebase": "^12.14.0",
+    "jsqr": "^1.4.0",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.34",
+    "vue-router": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.3",
+    "@vitejs/plugin-vue": "^6.0.6",
+    "@vue/tsconfig": "^0.9.1",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.12",
+    "vite-plugin-pwa": "^1.3.0",
+    "vue-tsc": "^3.2.8"
+  }
+}

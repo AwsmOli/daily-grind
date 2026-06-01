@@ -1,0 +1,113 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    function isMember(teamId) {
+      return isAuthed() &&
+        exists(/databases/$(database)/documents/teams/$(teamId)/members/$(request.auth.uid));
+    }
+
+    function isAdmin(teamId) {
+      return isAuthed() &&
+        get(/databases/$(database)/documents/teams/$(teamId)/members/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /teams/{teamId} {
+      allow create: if isAuthed() && request.resource.data.createdBy == request.auth.uid;
+      allow read: if isMember(teamId);
+      allow update, delete: if isAdmin(teamId);
+
+      match /members/{userId} {
+        // Members can read any member doc; a user can also read their own (for join existence check).
+        allow read: if isMember(teamId) || (isAuthed() && request.auth.uid == userId);
+
+        // Allow self-join membership creation from invite flow.
+        allow create: if isAuthed() && request.auth.uid == userId && request.resource.data.userId == request.auth.uid;
+
+        allow update, delete: if isAdmin(teamId);
+      }
+
+      match /inviteLinks/{inviteId} {
+        // Any authenticated user can read an invite link — the token is unguessable
+        // and must be readable before the user can become a member.
+        allow read: if isAuthed();
+        allow create: if isAdmin(teamId);
+
+        // Allow authenticated users to consume invite usage count during join.
+        allow update: if isAuthed();
+
+        allow delete: if isAdmin(teamId);
+      }
+
+      match /lists/{listId} {
+        allow read: if isMember(teamId);
+        // isAuthed() is sufficient: teamId is an unguessable random ID.
+        // During team bootstrapping, no member/team doc exists yet in the DB.
+        allow create: if isAuthed();
+        allow update, delete: if isAdmin(teamId);
+      }
+
+      match /tasks/{taskId} {
+        allow read: if isAdmin(teamId) || (isMember(teamId) && (
+          resource.data.visibility == 'shared' ||
+          resource.data.ownerUserId == request.auth.uid
+        ));
+
+        allow create: if isMember(teamId) && (
+          request.resource.data.visibility == 'shared' ||
+          request.resource.data.ownerUserId == request.auth.uid
+        );
+
+        allow update, delete: if isAdmin(teamId) || (isMember(teamId) && (
+          resource.data.visibility == 'shared' ||
+          resource.data.ownerUserId == request.auth.uid
+        ));
+      }
+
+      match /pointAccounts/{userId} {
+        // Members can read any account; a user can also read their own (for join existence check).
+        allow read: if isMember(teamId) || (isAuthed() && request.auth.uid == userId);
+        // Allow self-create without a membership check: covers bootstrapping during team creation.
+        allow create: if isAuthed() && request.auth.uid == userId && request.resource.data.userId == request.auth.uid;
+        allow update: if isAdmin(teamId) || (isMember(teamId) && request.auth.uid == userId);
+        allow delete: if isAdmin(teamId);
+      }
+
+      match /pointLedger/{entryId} {
+        allow read: if isMember(teamId);
+        allow create: if isMember(teamId) && request.resource.data.note is string && request.resource.data.note.size() > 0;
+        allow update, delete: if false;
+      }
+
+      match /taskEvents/{eventId} {
+        allow read: if isMember(teamId);
+        allow create: if isMember(teamId);
+        allow update, delete: if false;
+      }
+    }
+
+    match /users/{userId} {
+      allow read, write: if isAuthed() && request.auth.uid == userId;
+
+      match /pushTokens/{tokenId} {
+        allow read, write: if isAuthed() && request.auth.uid == userId;
+      }
+    }
+
+    // Required for collectionGroup query: "find all teams I'm a member of".
+    // The /{path=**} recursive wildcard is the only way Firestore can authorize
+    // a collectionGroup query that spans multiple parent documents.
+    match /{path=**}/members/{memberId} {
+      allow read: if isAuthed() && resource.data.userId == request.auth.uid;
+    }
+
+    // Required for collectionGroup query: "find invite by token".
+    // The token is unguessable so any authenticated user (including anonymous) may read.
+    match /{path=**}/inviteLinks/{inviteId} {
+      allow read: if isAuthed();
+    }
+  }
+}
