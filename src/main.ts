@@ -2,8 +2,8 @@ import { createPinia } from "pinia";
 import { registerSW } from "virtual:pwa-register";
 import { createApp } from "vue";
 import App from "./App.vue";
-import router from "./router";
-import { useSessionStore } from "./stores/session";
+import router from "./router/index.ts";
+import { useSessionStore } from "./stores/session.ts";
 import "./style.css";
 
 const app = createApp(App);

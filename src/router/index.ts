@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 
-import { useSessionStore } from "../stores/session";
+import { useSessionStore } from "../stores/session.ts";
 import AdminSettingsView from "../views/AdminSettingsView.vue";
 import BalanceView from "../views/BalanceView.vue";
 import CreateTeamView from "../views/CreateTeamView.vue";
