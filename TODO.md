@@ -1,0 +1,2 @@
+- [ ] Build next iteration with approval flow for finished tasks
+- [ ] Add more role management
